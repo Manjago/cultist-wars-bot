@@ -17,7 +17,7 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
     }
 
     fun fillBoardLine(y: Int, source: String) {
-        check(source.length == width) { "source.length == width" }
+        check(source.length == width) { "source.length == width violated" }
         for (i in source.indices) {
             when (source[i]) {
                 'x' -> board[y][i] = ObstacleItem.INSTANCE
