@@ -1,0 +1,1 @@
+Bot for https://www.codingame.com/ide/challenge/cultist-wars
