@@ -7,8 +7,7 @@ import java.util.Scanner
 
 class Bot(private val myId: Int, private val width: Int, private val height: Int) {
 
-    private val board: Array<Array<Item>> = Array(height) { Array(width) { EmptyItem.INSTANCE } }
-    private val visited = mutableSetOf<Int>()
+    private val board = mutableSetOf<Cell>()
     private val allCultists = mutableMapOf<Int, Cultist>()
     private val allCultLeaders = mutableMapOf<Int, CultLeader>()
 
@@ -18,27 +17,20 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
 
     fun fillBoardLine(y: Int, source: String) {
         check(source.length == width) { "source.length == width violated" }
-        for (i in source.indices) {
-            when (source[i]) {
-                'x' -> board[y][i] = ObstacleItem.INSTANCE
-                '.' -> board[y][i] = EmptyItem.INSTANCE
-                else -> throw IllegalArgumentException("${source[i]} at $y $i")
+        for (x in source.indices) {
+            when (source[x]) {
+                'x' -> board.add(ObstacleCell(x, y))
+                '.' -> board.add(EmptyCell(x, y))
+                else -> throw IllegalArgumentException("${source[x]} at $y $x")
             }
         }
     }
 
     fun clear() {
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                if (board[y][x] !is ObstacleItem) {
-                    board[y][x] = EmptyItem.INSTANCE
-                }
-            }
-        }
-        visited.clear()
+        board.removeIf { it !is ObstacleCell }
     }
 
-    fun setItem(itemId: Int, itemType: Int, x: Int, y: Int, hp: Int, owner: Int) {
+    fun setItem(itemId: Int, itemType: Int, x: Int, y: Int, hp: Int, owner: Int, visited: MutableSet<Int>) {
         when (itemType) {
             0 -> {
                 val cultist = allCultists[itemId]
@@ -46,6 +38,7 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
                     cultist != null -> cultist.update(x, y, hp, int2Owner(owner))
                     else -> allCultists[itemId] = Cultist(itemId, hp, int2Owner(owner), x, y, true)
                 }
+                board.add(allCultists[itemId]!!)
             }
 
             1 -> {
@@ -54,12 +47,13 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
                     cultLeader != null -> cultLeader.update(x, y, hp, int2Owner(owner))
                     else -> allCultLeaders[itemId] = CultLeader(itemId, hp, int2Owner(owner), x, y, true)
                 }
+                board.add(allCultLeaders[itemId]!!)
             }
         }
         visited.add(itemId)
     }
 
-    fun markDead() {
+    fun markDead(visited: MutableSet<Int>) {
         allCultists.values.forEach { it.kill(visited) }
         allCultLeaders.values.forEach { it.kill(visited) }
     }
@@ -76,21 +70,17 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
     }
 }
 
-sealed interface Item
-
-class EmptyItem : Item {
-    companion object {
-        val INSTANCE = EmptyItem()
-    }
+sealed interface Cell {
+    val x: Int
+    val y: Int
 }
 
-class ObstacleItem : Item {
-    companion object {
-        val INSTANCE = ObstacleItem()
-    }
+class EmptyCell(override val x: Int, override val y: Int) : Cell
+
+class ObstacleCell(override val x: Int, override val y: Int) : Cell {
 }
 
-abstract class Unit(val id: Int, var hp: Int, var owner: Owner, var x: Int, var y: Int, var alive: Boolean) : Item {
+abstract class Unit(val id: Int, var hp: Int, var owner: Owner, override var x: Int, override var y: Int, var alive: Boolean) : Cell {
     fun update(x: Int, y: Int, hp: Int, owner: Owner) {
         this.x = x
         this.y = y
@@ -139,11 +129,13 @@ fun main(args: Array<String>) {
         bot.fillBoardLine(i, y)
     }
 
+    val visited = mutableSetOf<Int>()
 
     // game loop
     while (true) {
 
         bot.clear()
+        visited.clear()
 
         val numOfUnits = input.nextInt() // The total number of units on the board
         for (i in 0 until numOfUnits) {
@@ -153,10 +145,10 @@ fun main(args: Array<String>) {
             val x = input.nextInt() // X coordinate of the unit
             val y = input.nextInt() // Y coordinate of the unit
             val owner = input.nextInt() // id of owner player
-            bot.setItem(unitId, unitType, x, y, hp, owner)
+            bot.setItem(unitId, unitType, x, y, hp, owner, visited)
         }
 
-        bot.markDead()
+        bot.markDead(visited)
         // Write an action using println()
         // To debug: System.err.println("Debug messages...");
 
