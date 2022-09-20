@@ -7,9 +7,7 @@ import java.util.Scanner
 
 class Bot(private val myId: Int, private val width: Int, private val height: Int) {
 
-    private val board = mutableSetOf<Cell>()
-    private val allCultists = mutableMapOf<Int, Cultist>()
-    private val allCultLeaders = mutableMapOf<Int, CultLeader>()
+    private val board = mutableMapOf<Cell, Item>()
 
     fun answer(): Move {
         return WaitMove.INSTANCE
@@ -19,43 +17,28 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
         check(source.length == width) { "source.length == width violated" }
         for (x in source.indices) {
             when (source[x]) {
-                'x' -> board.add(ObstacleCell(x, y))
-                '.' -> board.add(EmptyCell(x, y))
+                'x' -> board.put( Cell(x, y), ObstacleItem.INSTANCE)
+                '.' -> board.put( Cell(x, y), EmptyItem.INSTANCE)
                 else -> throw IllegalArgumentException("${source[x]} at $y $x")
             }
         }
     }
 
-    fun clear() {
-        board.removeIf { it !is ObstacleCell }
-    }
-
-    fun setItem(itemId: Int, itemType: Int, x: Int, y: Int, hp: Int, owner: Int, visited: MutableSet<Int>) {
-        when (itemType) {
-            0 -> {
-                val cultist = allCultists[itemId]
-                when {
-                    cultist != null -> cultist.update(x, y, hp, int2Owner(owner))
-                    else -> allCultists[itemId] = Cultist(itemId, hp, int2Owner(owner), x, y, true)
-                }
-                board.add(allCultists[itemId]!!)
-            }
-
-            1 -> {
-                val cultLeader = allCultLeaders[itemId]
-                when {
-                    cultLeader != null -> cultLeader.update(x, y, hp, int2Owner(owner))
-                    else -> allCultLeaders[itemId] = CultLeader(itemId, hp, int2Owner(owner), x, y, true)
-                }
-                board.add(allCultLeaders[itemId]!!)
+    fun clearBoard() {
+        board.replaceAll { _, item ->
+            if ((item !is ObstacleItem) && (item !is EmptyItem)) {
+                EmptyItem.INSTANCE
+            } else {
+                item
             }
         }
-        visited.add(itemId)
     }
 
-    fun markDead(visited: MutableSet<Int>) {
-        allCultists.values.forEach { it.kill(visited) }
-        allCultLeaders.values.forEach { it.kill(visited) }
+    fun setItemToBoard(itemId: Int, itemType: Int, x: Int, y: Int, hp: Int, owner: Int) {
+        when (itemType) {
+            0 -> board.put(Cell(x, y), Cultist(itemId, hp, int2Owner(owner)))
+            1 -> board.put(Cell(x, y), CultLeader(itemId, hp, int2Owner(owner)))
+        }
     }
 
     private fun int2Owner(value: Int): Owner =
@@ -65,38 +48,42 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
             else -> Owner.ENEMY
         }
 
+
+    private fun isValid(x: Int, y: Int): Boolean {
+        return (x in 0 until width) && (y in 0 until height)
+    }
+
+
     companion object {
         private const val NEUTRAL_VALUE = 2
     }
 }
 
-sealed interface Cell {
-    val x: Int
-    val y: Int
+data class Cell(val x: Int, val y: Int)
+
+sealed interface Item
+
+class EmptyItem : Item {
+    companion object {
+        val INSTANCE = EmptyItem()
+    }
 }
 
-class EmptyCell(override val x: Int, override val y: Int) : Cell
-
-class ObstacleCell(override val x: Int, override val y: Int) : Cell {
+class ObstacleItem: Item {
+    companion object {
+        val INSTANCE = ObstacleItem()
+    }
 }
 
-abstract class Unit(val id: Int, var hp: Int, var owner: Owner, override var x: Int, override var y: Int, var alive: Boolean) : Cell {
-    fun update(x: Int, y: Int, hp: Int, owner: Owner) {
-        this.x = x
-        this.y = y
+abstract class Unit(val id: Int, var hp: Int, var owner: Owner) : Item {
+    fun update(hp: Int, owner: Owner) {
         this.hp = hp
         this.owner = owner
     }
-
-    fun kill(visited: Set<Int>) {
-        if (!visited.contains(this.id)) {
-            this.alive = false
-        }
-    }
 }
 
-class Cultist(id: Int, hp: Int, owner: Owner, x: Int, y: Int, alive: Boolean) : Unit(id, hp, owner, x, y, alive)
-class CultLeader(id: Int, hp: Int, owner: Owner, x: Int, y: Int, alive: Boolean) : Unit(id, hp, owner, x, y, alive)
+class Cultist(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner)
+class CultLeader(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner)
 
 sealed interface Move {
     override fun toString(): String
@@ -129,13 +116,11 @@ fun main(args: Array<String>) {
         bot.fillBoardLine(i, y)
     }
 
-    val visited = mutableSetOf<Int>()
 
     // game loop
     while (true) {
 
-        bot.clear()
-        visited.clear()
+        bot.clearBoard()
 
         val numOfUnits = input.nextInt() // The total number of units on the board
         for (i in 0 until numOfUnits) {
@@ -145,10 +130,9 @@ fun main(args: Array<String>) {
             val x = input.nextInt() // X coordinate of the unit
             val y = input.nextInt() // Y coordinate of the unit
             val owner = input.nextInt() // id of owner player
-            bot.setItem(unitId, unitType, x, y, hp, owner, visited)
+            bot.setItemToBoard(unitId, unitType, x, y, hp, owner)
         }
 
-        bot.markDead(visited)
         // Write an action using println()
         // To debug: System.err.println("Debug messages...");
 
