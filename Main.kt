@@ -48,11 +48,19 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
             else -> Owner.ENEMY
         }
 
+    fun Cell.top() = Cell(x, y - 1).goodForLeader()
+    fun Cell.right() = Cell(x + 1, y).goodForLeader()
+    fun Cell.bottom() = Cell(x, y + 1).goodForLeader()
+    fun Cell.left() = Cell(x - 1, y).goodForLeader()
 
-    private fun isValid(x: Int, y: Int): Boolean {
-        return (x in 0 until width) && (y in 0 until height)
+    private fun Cell.goodForLeader(): Cell? {
+        val item = board.get(this) ?: return null
+        if (item is ObstacleItem ||
+            (item is Unit && item.owner == Owner.ME)) {
+            return null;
+        }
+        return this;
     }
-
 
     companion object {
         private const val NEUTRAL_VALUE = 2
