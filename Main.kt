@@ -4,14 +4,24 @@ import java.util.Scanner
  * Convert neutral units and attack enemy ones
  **/
 
-
-class Bot(private val myId: Int, private val width: Int, private val height: Int) {
-
-    private val board = mutableMapOf<Cell, Item>()
-
+class Bot(private val board: Board ) {
     fun answer(): Move {
+
+        val allCultLeaders = board.allCultLeaders()
+        allCultLeaders.forEach {
+            val victim = board.pathToNearestVictimForCultLeader(it.cell);
+            if (victim != null) {
+                return ConvertMove(it.item.id, victim.item.id)
+            }
+        }
+
         return WaitMove.INSTANCE
     }
+}
+
+class Board(private val myId: Int, private val width: Int, private val height: Int) {
+
+    private val board = mutableMapOf<Cell, Item>()
 
     fun fillBoardLine(y: Int, source: String) {
         check(source.length == width) { "source.length == width violated" }
@@ -62,6 +72,53 @@ class Bot(private val myId: Int, private val width: Int, private val height: Int
         return this;
     }
 
+    fun allCultLeaders(): List<ItemWithCell<CultLeader>> = board.entries.asSequence().filter{
+        it.value is CultLeader
+    }.map { ItemWithCell(it.key, it.value as CultLeader)}
+        .toList()
+
+    fun pathToNearestVictimForCultLeader(initial: Cell): ItemWithCell<Cultist>? {
+
+        val visited = mutableSetOf<Cell>()
+        val queue = ArrayDeque<Cell>()
+        queue += initial
+        while (queue.isNotEmpty()) {
+            val cell = queue.removeFirst()
+            if (visited.contains(cell)) {
+                continue;
+            }
+            visited += cell
+
+            val item = board[cell]
+            when(item) {
+                is EmptyItem -> queue += getNeighbors(cell)
+                is ObstacleItem -> continue
+                is Unit -> {
+                    when {
+                        (item is Cultist) && (item.owner != Owner.ME) -> return ItemWithCell(cell, item)
+                        else -> continue
+                    }
+                }
+                null -> continue
+            }
+
+            queue += getNeighbors(cell)
+        }
+
+        return null
+    }
+
+    private fun getNeighbors(cell: Cell): List<Cell> {
+        val result = mutableListOf<Cell>()
+
+        cell.top()?.let { result.add(it) }
+        cell.bottom()?.let { result.add(it) }
+        cell.left()?.let { result.add(it) }
+        cell.right()?.let { result.add(it) }
+
+        return result
+    }
+
     companion object {
         private const val NEUTRAL_VALUE = 2
     }
@@ -93,17 +150,23 @@ abstract class Unit(val id: Int, var hp: Int, var owner: Owner) : Item {
 class Cultist(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner)
 class CultLeader(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner)
 
+class ItemWithCell<T : Item>(val cell: Cell, val item: T)
+
 sealed interface Move {
     override fun toString(): String
 }
 
 class WaitMove : Move {
-    override fun toString(): String {
-        return "WAIT"
-    }
+    override fun toString(): String = "WAIT"
 
     companion object {
         val INSTANCE = WaitMove()
+    }
+}
+
+class ConvertMove(private val unitId: Int, private val targetId: Int) : Move {
+    override fun toString(): String {
+        return "$unitId CONVERT $targetId"
     }
 }
 
@@ -117,18 +180,18 @@ fun main(args: Array<String>) {
     val width = input.nextInt() // Width of the board
     val height = input.nextInt() // Height of the board
 
-    val bot = Bot(myId, width, height)
+    val board = Board(myId, width, height)
 
     for (i in 0 until height) {
         val y = input.next() // A y of the board: "." is empty, "x" is obstacle
-        bot.fillBoardLine(i, y)
+        board.fillBoardLine(i, y)
     }
 
 
     // game loop
     while (true) {
 
-        bot.clearBoard()
+        board.clearBoard()
 
         val numOfUnits = input.nextInt() // The total number of units on the board
         for (i in 0 until numOfUnits) {
@@ -138,7 +201,7 @@ fun main(args: Array<String>) {
             val x = input.nextInt() // X coordinate of the unit
             val y = input.nextInt() // Y coordinate of the unit
             val owner = input.nextInt() // id of owner player
-            bot.setItemToBoard(unitId, unitType, x, y, hp, owner)
+            board.setItemToBoard(unitId, unitType, x, y, hp, owner)
         }
 
         // Write an action using println()
@@ -146,6 +209,7 @@ fun main(args: Array<String>) {
 
 
         // WAIT | unitId MOVE x y | unitId SHOOT target| unitId CONVERT target
+        val bot = Bot(board)
         println(bot.answer())
     }
 }
