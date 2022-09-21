@@ -18,7 +18,10 @@ class Bot(private val board: Board) {
 
             val victim = board.pathToNearestVictimForCultLeader(it.cell)
             if (victim != null) {
+                debug("found victim $victim")
                 return ConvertMove(it.item.id, victim.item.id)
+            } else {
+                debug("victim is null")
             }
         }
 
@@ -96,10 +99,23 @@ class Board(private val myId: Int, private val width: Int, private val height: I
             }
             visited += cell
 
+            if (cell == initial) {
+                queue += getNeighbors(cell)
+                continue
+            }
+
             val item = board[cell]
+            debug("p $item")
             when (item) {
-                is EmptyItem -> queue += getNeighbors(cell)
-                is ObstacleItem -> continue
+                is EmptyItem -> {
+                    queue += getNeighbors(cell)
+                }
+                is ObstacleItem -> {
+                    continue
+                }
+                null -> {
+                    continue
+                }
                 is Unit -> {
                     when {
                         (item is Cultist) && (item.owner != Owner.ME) -> return ItemWithCell(cell, item)
@@ -107,10 +123,8 @@ class Board(private val myId: Int, private val width: Int, private val height: I
                     }
                 }
 
-                null -> continue
             }
 
-            queue += getNeighbors(cell)
         }
 
         return null
