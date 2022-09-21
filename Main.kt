@@ -13,12 +13,12 @@ class Bot(private val board: Board) {
             val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(it.cell)
             if (nearestVictims.isNotEmpty()) {
                 val nearVictim = nearestVictims[0]
-                System.err.println("near found: ${nearVictim}")
+                debug("near found: ${nearVictim}")
                 return ConvertMove(it.item.id, nearVictim.item.id)
             }
 
             val victim = board.pathToNearestVictimForCultLeader(it.cell)
-            System.err.println("c ${it.cell} ${it.item.id} found $victim")
+            debug("c ${it.cell} ${it.item.id} found $victim")
             if (victim != null) {
                 return ConvertMove(it.item.id, victim.item.id)
             }
@@ -73,6 +73,8 @@ class Board(private val myId: Int, private val width: Int, private val height: I
     fun Cell.left() = Cell(x - 1, y).checkBounds()
 
     private fun Cell.checkBounds(): Cell? {
+        debug("bound $this")
+        debug("board ${board[this]}")
         if (board[this] != null) {
             return this
         } else {
@@ -153,7 +155,10 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         cell.right()?.let {
             val item = board[cell]
             if (item is Cultist && item.owner != Owner.ME) {
+                debug("good right $item")
                 result.add(ItemWithCell(it, item))
+            } else {
+                debug("bad right $item")
             }
         }
 
@@ -186,10 +191,23 @@ abstract class Unit(val id: Int, var hp: Int, var owner: Owner) : Item {
         this.hp = hp
         this.owner = owner
     }
+
+    override fun toString(): String {
+        return "Unit(id=$id, hp=$hp, owner=$owner)"
+    }
+
 }
 
-class Cultist(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner)
-class CultLeader(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner)
+class Cultist(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner) {
+    override fun toString(): String {
+        return "Cultist() ${super.toString()}"
+    }
+}
+class CultLeader(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner) {
+    override fun toString(): String {
+        return "CultLeader() ${super.toString()}"
+    }
+}
 
 class ItemWithCell<T : Item>(val cell: Cell, val item: T)
 
@@ -246,11 +264,15 @@ fun main(args: Array<String>) {
         }
 
         // Write an action using println()
-        // To debug: System.err.println("Debug messages...");
+        // To debug: debug("Debug messages...");
 
 
         // WAIT | unitId MOVE x y | unitId SHOOT target| unitId CONVERT target
         val bot = Bot(board)
         println(bot.answer())
     }
+}
+
+fun debug(string: String) {
+    System.err.println(string)
 }
