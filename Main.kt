@@ -13,12 +13,10 @@ class Bot(private val board: Board) {
             val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(it.cell)
             if (nearestVictims.isNotEmpty()) {
                 val nearVictim = nearestVictims[0]
-                debug("near found: ${nearVictim}")
                 return ConvertMove(it.item.id, nearVictim.item.id)
             }
 
             val victim = board.pathToNearestVictimForCultLeader(it.cell)
-            debug("c ${it.cell} ${it.item.id} found $victim")
             if (victim != null) {
                 return ConvertMove(it.item.id, victim.item.id)
             }
@@ -73,8 +71,6 @@ class Board(private val myId: Int, private val width: Int, private val height: I
     fun Cell.left() = Cell(x - 1, y).checkBounds()
 
     private fun Cell.checkBounds(): Cell? {
-        debug("bound $this")
-        debug("board ${board[this]}")
         if (board[this] != null) {
             return this
         } else {
@@ -155,10 +151,7 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         cell.right()?.let {
             val item = board[it]
             if (item is Cultist && item.owner != Owner.ME) {
-                debug("good right $item")
                 result.add(ItemWithCell(it, item))
-            } else {
-                debug("bad right $item")
             }
         }
 
@@ -209,7 +202,11 @@ class CultLeader(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner) {
     }
 }
 
-class ItemWithCell<T : Item>(val cell: Cell, val item: T)
+class ItemWithCell<T : Item>(val cell: Cell, val item: T) {
+    override fun toString(): String {
+        return "ItemWithCell(cell=$cell, item=$item)"
+    }
+}
 
 sealed interface Move {
     override fun toString(): String
@@ -263,8 +260,6 @@ fun main(args: Array<String>) {
             board.setItemToBoard(unitId, unitType, x, y, hp, owner)
         }
 
-        // Write an action using println()
-        // To debug: debug("Debug messages...");
 
 
         // WAIT | unitId MOVE x y | unitId SHOOT target| unitId CONVERT target
