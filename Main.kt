@@ -4,14 +4,21 @@ import java.util.Scanner
  * Convert neutral units and attack enemy ones
  **/
 
-class Bot(private val board: Board ) {
+class Bot(private val board: Board) {
     fun answer(): Move {
 
         val allCultLeaders = board.allMyCultLeaders()
-        System.err.println("size ${allCultLeaders.size}")
         allCultLeaders.forEach {
-            val victim = board.pathToNearestVictimForCultLeader(it.cell);
-            System.err.println("c ${it.cell} ${it.item.id} found $victim");
+
+            val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(it.cell)
+            if (nearestVictims.isNotEmpty()) {
+                val nearVictim = nearestVictims[0]
+                System.err.println("near found: ${nearVictim}")
+                return ConvertMove(it.item.id, nearVictim.item.id)
+            }
+
+            val victim = board.pathToNearestVictimForCultLeader(it.cell)
+            System.err.println("c ${it.cell} ${it.item.id} found $victim")
             if (victim != null) {
                 return ConvertMove(it.item.id, victim.item.id)
             }
@@ -29,8 +36,8 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         check(source.length == width) { "source.length == width violated" }
         for (x in source.indices) {
             when (source[x]) {
-                'x' -> board.put( Cell(x, y), ObstacleItem.INSTANCE)
-                '.' -> board.put( Cell(x, y), EmptyItem.INSTANCE)
+                'x' -> board.put(Cell(x, y), ObstacleItem.INSTANCE)
+                '.' -> board.put(Cell(x, y), EmptyItem.INSTANCE)
                 else -> throw IllegalArgumentException("${source[x]} at $y $x")
             }
         }
@@ -60,24 +67,23 @@ class Board(private val myId: Int, private val width: Int, private val height: I
             else -> Owner.ENEMY
         }
 
-    fun Cell.top() = Cell(x, y - 1).goodForLeader()
-    fun Cell.right() = Cell(x + 1, y).goodForLeader()
-    fun Cell.bottom() = Cell(x, y + 1).goodForLeader()
-    fun Cell.left() = Cell(x - 1, y).goodForLeader()
+    fun Cell.top() = Cell(x, y - 1).checkBounds()
+    fun Cell.right() = Cell(x + 1, y).checkBounds()
+    fun Cell.bottom() = Cell(x, y + 1).checkBounds()
+    fun Cell.left() = Cell(x - 1, y).checkBounds()
 
-    private fun Cell.goodForLeader(): Cell? {
-        val item = board.get(this) ?: return null
-        if (item is ObstacleItem ||
-            (item is Unit && item.owner == Owner.ME)) {
-            return null;
+    private fun Cell.checkBounds(): Cell? {
+        if (board[this] != null) {
+            return this
+        } else {
+            return null
         }
-        return this;
     }
 
-    fun allMyCultLeaders(): List<ItemWithCell<CultLeader>> = board.entries.asSequence().filter{
+    fun allMyCultLeaders(): List<ItemWithCell<CultLeader>> = board.entries.asSequence().filter {
         val value = it.value
         value is CultLeader && value.owner == Owner.ME
-    }.map { ItemWithCell(it.key, it.value as CultLeader)}
+    }.map { ItemWithCell(it.key, it.value as CultLeader) }
         .toList()
 
     fun pathToNearestVictimForCultLeader(initial: Cell): ItemWithCell<Cultist>? {
@@ -88,12 +94,12 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         while (queue.isNotEmpty()) {
             val cell = queue.removeFirst()
             if (visited.contains(cell)) {
-                continue;
+                continue
             }
             visited += cell
 
             val item = board[cell]
-            when(item) {
+            when (item) {
                 is EmptyItem -> queue += getNeighbors(cell)
                 is ObstacleItem -> continue
                 is Unit -> {
@@ -102,6 +108,7 @@ class Board(private val myId: Int, private val width: Int, private val height: I
                         else -> continue
                     }
                 }
+
                 null -> continue
             }
 
@@ -122,6 +129,37 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         return result
     }
 
+    fun nearestVictimsForCultLeader(cell: Cell): List<ItemWithCell<Cultist>> {
+        val result = mutableListOf<ItemWithCell<Cultist>>()
+
+        cell.top()?.let {
+            val item = board[cell]
+            if (item is Cultist && item.owner != Owner.ME) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+        cell.bottom()?.let {
+            val item = board[cell]
+            if (item is Cultist && item.owner != Owner.ME) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+        cell.left()?.let {
+            val item = board[cell]
+            if (item is Cultist && item.owner != Owner.ME) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+        cell.right()?.let {
+            val item = board[cell]
+            if (item is Cultist && item.owner != Owner.ME) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+
+        return result
+    }
+
     companion object {
         private const val NEUTRAL_VALUE = 2
     }
@@ -137,7 +175,7 @@ class EmptyItem : Item {
     }
 }
 
-class ObstacleItem: Item {
+class ObstacleItem : Item {
     companion object {
         val INSTANCE = ObstacleItem()
     }
