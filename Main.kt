@@ -7,9 +7,11 @@ import java.util.Scanner
 class Bot(private val board: Board ) {
     fun answer(): Move {
 
-        val allCultLeaders = board.allCultLeaders()
+        val allCultLeaders = board.allMyCultLeaders()
+        System.err.println("size ${allCultLeaders.size}")
         allCultLeaders.forEach {
             val victim = board.pathToNearestVictimForCultLeader(it.cell);
+            System.err.println("c ${it.cell} ${it.item.id} found $victim");
             if (victim != null) {
                 return ConvertMove(it.item.id, victim.item.id)
             }
@@ -72,8 +74,9 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         return this;
     }
 
-    fun allCultLeaders(): List<ItemWithCell<CultLeader>> = board.entries.asSequence().filter{
-        it.value is CultLeader
+    fun allMyCultLeaders(): List<ItemWithCell<CultLeader>> = board.entries.asSequence().filter{
+        val value = it.value
+        value is CultLeader && value.owner == Owner.ME
     }.map { ItemWithCell(it.key, it.value as CultLeader)}
         .toList()
 
