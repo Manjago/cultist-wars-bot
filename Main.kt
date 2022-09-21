@@ -135,25 +135,25 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         val result = mutableListOf<ItemWithCell<Cultist>>()
 
         cell.top()?.let {
-            val item = board[cell]
+            val item = board[it]
             if (item is Cultist && item.owner != Owner.ME) {
                 result.add(ItemWithCell(it, item))
             }
         }
         cell.bottom()?.let {
-            val item = board[cell]
+            val item = board[it]
             if (item is Cultist && item.owner != Owner.ME) {
                 result.add(ItemWithCell(it, item))
             }
         }
         cell.left()?.let {
-            val item = board[cell]
+            val item = board[it]
             if (item is Cultist && item.owner != Owner.ME) {
                 result.add(ItemWithCell(it, item))
             }
         }
         cell.right()?.let {
-            val item = board[cell]
+            val item = board[it]
             if (item is Cultist && item.owner != Owner.ME) {
                 debug("good right $item")
                 result.add(ItemWithCell(it, item))
