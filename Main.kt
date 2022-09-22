@@ -1,3 +1,4 @@
+import java.util.PriorityQueue
 import java.util.Scanner
 
 /**
@@ -5,28 +6,53 @@ import java.util.Scanner
  **/
 
 class Bot(private val board: Board) {
+
+    private val P_CONVERT_NEAR = 900
+    private val P_CONVERT_FAR = 1000
+    private val P_WAIT = 100000
+
     fun answer(): Move {
 
-        val allCultLeaders = board.allMyCultLeaders()
-        allCultLeaders.forEach {
+        val pq = PriorityQueue<PqItem>()
 
-            val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(it.cell)
-            if (nearestVictims.isNotEmpty()) {
+        val allCultLeaders = board.allMyCultLeaders()
+        allCultLeaders.forEach { tryConvert(it, pq) }
+
+        pq.add(P_WAIT, WaitMove.INSTANCE)
+
+        return pq.peek().move
+    }
+
+    private fun tryConvert(it: ItemWithCell<CultLeader>, pq: PriorityQueue<PqItem>) {
+        val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(it.cell)
+        when {
+            nearestVictims.isNotEmpty() -> {
                 val nearVictim = nearestVictims[0]
-                return ConvertMove(it.item.id, nearVictim.item.id)
+                pq.add(P_CONVERT_NEAR, ConvertMove(it.item.id, nearVictim.item.id))
             }
 
-            val victim = board.pathToNearestVictimForCultLeader(it.cell)
-            if (victim != null) {
-                debug("found victim $victim")
-                return ConvertMove(it.item.id, victim.item.id)
-            } else {
-                debug("victim is null")
+            else -> {
+                val victim = board.pathToNearestVictimForCultLeader(it.cell)
+                when {
+                    victim != null -> {
+                        debug("found victim $victim")
+                        pq.add(P_CONVERT_FAR, ConvertMove(it.item.id, victim.item.id))
+                    }
+
+                    else -> debug("victim is null")
+                }
             }
         }
-
-        return WaitMove.INSTANCE
     }
+
+    private fun PriorityQueue<PqItem>.add(priority: Int, move: Move) {
+        this.add(PqItem(priority, move))
+    }
+
+}
+
+class PqItem(val priority: Int, val move: Move) : Comparable<PqItem> {
+    override fun compareTo(other: PqItem): Int = priority.compareTo(other.priority)
 }
 
 class Board(private val myId: Int, private val width: Int, private val height: Int) {
@@ -258,6 +284,7 @@ fun main(args: Array<String>) {
     }
 
 
+    val bot = Bot(board)
     // game loop
     while (true) {
 
@@ -277,7 +304,6 @@ fun main(args: Array<String>) {
 
 
         // WAIT | unitId MOVE x y | unitId SHOOT target| unitId CONVERT target
-        val bot = Bot(board)
         println(bot.answer())
     }
 }
