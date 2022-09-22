@@ -1,3 +1,4 @@
+import java.lang.Math.abs
 import java.util.PriorityQueue
 import java.util.Scanner
 
@@ -7,9 +8,12 @@ import java.util.Scanner
 
 class Bot(private val board: Board) {
 
-    private val P_CONVERT_NEAR = 900
-    private val P_CONVERT_FAR = 1000
-    private val P_WAIT = 100000
+    private val P_SHOOT = 100_000
+    private val P_CONVERT_NEAR = 800_000
+    private val P_CONVERT_FAR = 900_000
+    private val P_WAIT = 1_000_000
+
+    private val DAMAGE = 7
 
     fun answer(): Move {
 
@@ -18,34 +22,49 @@ class Bot(private val board: Board) {
         val allCultLeaders = board.allMyCultLeaders()
         allCultLeaders.forEach { tryConvert(it, pq) }
 
+        val allMyCultist = board.allMyCultist()
+        val allEnemies = board.allEnemies()
+        allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
+
         pq.add(P_WAIT, WaitMove.INSTANCE)
 
         return pq.peek().move
     }
 
-    private fun tryConvert(it: ItemWithCell<CultLeader>, pq: PriorityQueue<PqItem>) {
-        val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(it.cell)
+    data class UnitAndCellWithDistance(val cell: Cell, val distance: Int, val unit: Unit)
+
+    private fun tryShoot(cultist: ItemWithCell<Cultist>, pq: PriorityQueue<PqItem>, allEnemies: List<ItemWithCell<Unit>>) {
+
+         val pretender: UnitAndCellWithDistance? = allEnemies.asSequence().map {
+             UnitAndCellWithDistance(it.cell, it.cell.distance(cultist.cell), it.item)
+         }.filter { it.distance < DAMAGE }.sortedBy { it.distance }.firstOrNull()
+
+        if (pretender != null) {
+             pq.add(P_SHOOT + pretender.distance, ShootMove(cultist.item.id, pretender.unit.id))
+        }
+    }
+
+    private fun tryConvert(cultLeader: ItemWithCell<CultLeader>, pq: PriorityQueue<PqItem>) {
+        val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(cultLeader.cell)
         when {
             nearestVictims.isNotEmpty() -> {
                 val nearVictim = nearestVictims[0]
-                pq.add(P_CONVERT_NEAR, ConvertMove(it.item.id, nearVictim.item.id))
+                pq.add(P_CONVERT_NEAR, ConvertMove(cultLeader.item.id, nearVictim.item.id))
             }
 
             else -> {
-                val victim = board.pathToNearestVictimForCultLeader(it.cell)
+                val victim = board.pathToNearestVictimForCultLeader(cultLeader.cell)
                 when {
                     victim != null -> {
-                        debug("found victim $victim")
-                        pq.add(P_CONVERT_FAR, ConvertMove(it.item.id, victim.item.id))
+                        pq.add(P_CONVERT_FAR, ConvertMove(cultLeader.item.id, victim.item.id))
                     }
-
-                    else -> debug("victim is null")
                 }
             }
         }
     }
 
     private fun PriorityQueue<PqItem>.add(priority: Int, move: Move) {
+        debug("pq $priority $move")
         this.add(PqItem(priority, move))
     }
 
@@ -113,6 +132,18 @@ class Board(private val myId: Int, private val width: Int, private val height: I
     }.map { ItemWithCell(it.key, it.value as CultLeader) }
         .toList()
 
+    fun allMyCultist(): List<ItemWithCell<Cultist>> = board.entries.asSequence().filter {
+        val value = it.value
+        value is Cultist && value.owner == Owner.ME
+    }.map { ItemWithCell(it.key, it.value as Cultist) }
+        .toList()
+
+    fun allEnemies(): List<ItemWithCell<Unit>> = board.entries.asSequence().filter {
+        val value = it.value
+        value is Unit && value.owner == Owner.ENEMY
+    }.map { ItemWithCell(it.key, it.value as Unit) }
+        .toList()
+
     fun pathToNearestVictimForCultLeader(initial: Cell): ItemWithCell<Cultist>? {
 
         val visited = mutableSetOf<Cell>()
@@ -131,7 +162,6 @@ class Board(private val myId: Int, private val width: Int, private val height: I
             }
 
             val item = board[cell]
-            debug("p $item")
             when (item) {
                 is EmptyItem -> {
                     queue += getNeighbors(cell)
@@ -203,7 +233,9 @@ class Board(private val myId: Int, private val width: Int, private val height: I
     }
 }
 
-data class Cell(val x: Int, val y: Int)
+data class Cell(val x: Int, val y: Int) {
+    fun distance(other: Cell) : Int = abs(x - other.x) + abs(y - other.y)
+}
 
 sealed interface Item
 
@@ -263,6 +295,12 @@ class WaitMove : Move {
 class ConvertMove(private val unitId: Int, private val targetId: Int) : Move {
     override fun toString(): String {
         return "$unitId CONVERT $targetId"
+    }
+}
+
+class ShootMove(private val unitId: Int, private val targetId: Int) : Move {
+    override fun toString(): String {
+        return "$unitId SHOOT $targetId"
     }
 }
 
