@@ -33,14 +33,20 @@ class Bot(private val board: Board) {
 
     data class UnitAndCellWithDistance(val cell: Cell, val distance: Int, val unit: Unit)
 
-    private fun tryShoot(cultist: ItemWithCell<Cultist>, pq: PriorityQueue<PqItem>, allEnemies: List<ItemWithCell<Unit>>) {
+    private fun tryShoot(
+        cultist: ItemWithCell<Cultist>,
+        pq: PriorityQueue<PqItem>,
+        allEnemies: List<ItemWithCell<Unit>>
+    ) {
 
-         val pretender: UnitAndCellWithDistance? = allEnemies.asSequence().map {
-             UnitAndCellWithDistance(it.cell, it.cell.distance(cultist.cell), it.item)
-         }.filter { it.distance < DAMAGE }.sortedBy { it.distance }.firstOrNull()
+        val pretender: UnitAndCellWithDistance? = allEnemies.asSequence().map {
+            UnitAndCellWithDistance(it.cell, it.cell.distance(cultist.cell), it.item)
+        }.filter { it.distance < DAMAGE }
+            .filter { board.bresIsFree(it.cell, cultist.cell) }
+            .sortedBy { it.distance }.firstOrNull()
 
         if (pretender != null) {
-             pq.add(P_SHOOT + pretender.distance, ShootMove(cultist.item.id, pretender.unit.id))
+            pq.add(P_SHOOT + pretender.distance, ShootMove(cultist.item.id, pretender.unit.id))
         }
     }
 
@@ -166,15 +172,18 @@ class Board(private val myId: Int, private val width: Int, private val height: I
                 is EmptyItem -> {
                     queue += getNeighbors(cell)
                 }
+
                 is ObstacleItem -> {
                     continue
                 }
+
                 null -> {
                     continue
                 }
+
                 is Unit -> {
                     when {
-                        (item is Cultist) && (item.owner != Owner.ME) -> return ItemWithCell(cell, item)
+                        (item is Cultist) && (item.owner == Owner.NEUTRAL) -> return ItemWithCell(cell, item)
                         else -> continue
                     }
                 }
@@ -202,30 +211,41 @@ class Board(private val myId: Int, private val width: Int, private val height: I
 
         cell.top()?.let {
             val item = board[it]
-            if (item is Cultist && item.owner != Owner.ME) {
+            if (item is Cultist && item.owner == Owner.NEUTRAL) {
                 result.add(ItemWithCell(it, item))
             }
         }
         cell.bottom()?.let {
             val item = board[it]
-            if (item is Cultist && item.owner != Owner.ME) {
+            if (item is Cultist && item.owner == Owner.NEUTRAL) {
                 result.add(ItemWithCell(it, item))
             }
         }
         cell.left()?.let {
             val item = board[it]
-            if (item is Cultist && item.owner != Owner.ME) {
+            if (item is Cultist && item.owner == Owner.NEUTRAL) {
                 result.add(ItemWithCell(it, item))
             }
         }
         cell.right()?.let {
             val item = board[it]
-            if (item is Cultist && item.owner != Owner.ME) {
+            if (item is Cultist && item.owner == Owner.NEUTRAL) {
                 result.add(ItemWithCell(it, item))
             }
         }
 
         return result
+    }
+
+    fun bresIsFree(from: Cell, to: Cell): Boolean {
+        val br = bres(from, to)
+        if (br.size <= 2) {
+            return true
+        }
+
+        val tested = br.slice(1..br.size - 2)
+        val bad = tested.any { board[it] !is EmptyItem }
+        return !bad
     }
 
     companion object {
@@ -234,7 +254,7 @@ class Board(private val myId: Int, private val width: Int, private val height: I
 }
 
 data class Cell(val x: Int, val y: Int) {
-    fun distance(other: Cell) : Int = abs(x - other.x) + abs(y - other.y)
+    fun distance(other: Cell): Int = abs(x - other.x) + abs(y - other.y)
 }
 
 sealed interface Item
@@ -268,6 +288,7 @@ class Cultist(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner) {
         return "Cultist() ${super.toString()}"
     }
 }
+
 class CultLeader(id: Int, hp: Int, owner: Owner) : Unit(id, hp, owner) {
     override fun toString(): String {
         return "CultLeader() ${super.toString()}"
@@ -340,9 +361,69 @@ fun main(args: Array<String>) {
         }
 
 
-
         // WAIT | unitId MOVE x y | unitId SHOOT target| unitId CONVERT target
         println(bot.answer())
+    }
+}
+
+
+fun bres(from: Cell, to: Cell): List<Cell> {
+    if (from.y > to.y) {
+        return bres(to, from)
+    }
+
+    val result = mutableListOf<Cell>()
+    drawBresenhamLine(from.x, from.y, to.x, to.y, result)
+    return result
+}
+
+// https://ru.wikibooks.org/wiki/%D0%A0%D0%B5%D0%B0%D0%BB%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D0%B8_%D0%B0%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC%D0%BE%D0%B2/%D0%90%D0%BB%D0%B3%D0%BE%D1%80%D0%B8%D1%82%D0%BC_%D0%91%D1%80%D0%B5%D0%B7%D0%B5%D0%BD%D1%85%D1%8D%D0%BC%D0%B0#%D0%A0%D0%B5%D0%B0%D0%BB%D0%B8%D0%B7%D0%B0%D1%86%D0%B8%D1%8F_%D0%BD%D0%B0_Java
+fun drawBresenhamLine(xStart: Int, yStart: Int, xEnd: Int, yEnd: Int, line: MutableList<Cell>) {
+
+    fun sign(x: Int): Int = x.compareTo(0)
+
+    fun plot(x: Int, y: Int) {
+        line.add(Cell(x, y))
+    }
+
+    var dx: Int
+    var dy: Int
+    val pdx: Int
+    val pdy: Int
+    val es: Int
+    val el: Int
+    dx = xEnd - xStart
+    dy = yEnd - yStart
+    val incX: Int = sign(dx)
+    val incY: Int = sign(dy)
+    if (dx < 0) dx = -dx
+    if (dy < 0) dy = -dy
+    if (dx > dy) {
+        pdx = incX
+        pdy = 0
+        es = dy
+        el = dx
+    } else {
+        pdx = 0
+        pdy = incY
+        es = dx
+        el = dy
+    }
+    var x: Int = xStart
+    var y: Int = yStart
+    var err: Int = el / 2
+    plot(x, y)
+    for (t in 0 until el) {
+        err -= es
+        if (err < 0) {
+            err += el
+            x += incX
+            y += incY
+        } else {
+            x += pdx
+            y += pdy
+        }
+        plot(x, y)
     }
 }
 
