@@ -13,6 +13,7 @@ class Bot(private val board: Board) {
     private val P_SHOOT = 100_000
     private val P_CONVERT_NEAR = 800_000
     private val P_CONVERT_FAR = 900_000
+    private val P_MOVE_CULTIST = 940_000
     private val P_RANDOM_CULTIST = 950_000
     private val P_WAIT = 1_000_000
 
@@ -31,6 +32,7 @@ class Bot(private val board: Board) {
         val allEnemies = board.allEnemies()
         allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
         allMyCultist.forEach { randomMove(it, pq) }
+        allMyCultist.forEach { tryCultistMove(it, pq) }
 
         pq.add(P_WAIT, WaitMove.INSTANCE)
 
@@ -81,6 +83,24 @@ class Bot(private val board: Board) {
                 when {
                     victim != null -> {
                         pq.add(P_CONVERT_FAR, ConvertMove(cultLeader.item.id, victim.item.id))
+                    }
+                }
+            }
+        }
+    }
+    private fun tryCultistMove(cultist: ItemWithCell<Cultist>, pq: PriorityQueue<PqItem>) {
+        val nearestVictims: List<ItemWithCell<Unit>> = board.nearestVictimsForCultist(cultist.cell)
+        when {
+            nearestVictims.isNotEmpty() -> {
+                val nearVictim = nearestVictims[0]
+                pq.add(P_SHOOT, ShootMove(cultist.item.id, nearVictim.item.id))
+            }
+
+            else -> {
+                val victim = board.pathToNearestVictimForCultist(cultist.cell)
+                when {
+                    victim != null -> {
+                        pq.add(P_MOVE_CULTIST, MoveMove(cultist.item.id, victim.cell))
                     }
                 }
             }
@@ -214,6 +234,50 @@ class Board(private val myId: Int, private val width: Int, private val height: I
 
         return null
     }
+    fun pathToNearestVictimForCultist(initial: Cell): ItemWithCell<Unit>? {
+
+        val visited = mutableSetOf<Cell>()
+        val queue = ArrayDeque<Cell>()
+        queue += initial
+        while (queue.isNotEmpty()) {
+            val cell = queue.removeFirst()
+            if (visited.contains(cell)) {
+                continue
+            }
+            visited += cell
+
+            if (cell == initial) {
+                queue += getNeighbors(cell)
+                continue
+            }
+
+            val item = board[cell]
+            when (item) {
+                is EmptyItem -> {
+                    queue += getNeighbors(cell)
+                }
+
+                is ObstacleItem -> {
+                    continue
+                }
+
+                null -> {
+                    continue
+                }
+
+                is Unit -> {
+                    when {
+                        item.owner == Owner.ENEMY -> return ItemWithCell(cell, item)
+                        else -> continue
+                    }
+                }
+
+            }
+
+        }
+
+        return null
+    }
 
     fun getNeighbors(cell: Cell): List<Cell> {
         val result = mutableListOf<Cell>()
@@ -250,6 +314,37 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         cell.right()?.let {
             val item = board[it]
             if (item is Cultist && item.owner == Owner.NEUTRAL) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+
+        return result
+    }
+
+    fun nearestVictimsForCultist(cell: Cell): List<ItemWithCell<Unit>> {
+        val result = mutableListOf<ItemWithCell<Unit>>()
+
+        cell.top()?.let {
+            val item = board[it]
+            if (item is Unit && item.owner == Owner.ENEMY) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+        cell.bottom()?.let {
+            val item = board[it]
+            if (item is Unit && item.owner == Owner.ENEMY) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+        cell.left()?.let {
+            val item = board[it]
+            if (item is Unit && item.owner == Owner.ENEMY) {
+                result.add(ItemWithCell(it, item))
+            }
+        }
+        cell.right()?.let {
+            val item = board[it]
+            if (item is Unit && item.owner == Owner.ENEMY) {
                 result.add(ItemWithCell(it, item))
             }
         }
