@@ -1,6 +1,8 @@
 import java.lang.Math.abs
+import java.time.Instant
 import java.util.PriorityQueue
 import java.util.Scanner
+import kotlin.random.Random
 
 /**
  * Convert neutral units and attack enemy ones
@@ -11,9 +13,12 @@ class Bot(private val board: Board) {
     private val P_SHOOT = 100_000
     private val P_CONVERT_NEAR = 800_000
     private val P_CONVERT_FAR = 900_000
+    private val P_RANDOM_CULTIST = 950_000
     private val P_WAIT = 1_000_000
 
     private val DAMAGE = 7
+
+    private val random = Random(Instant.now().toEpochMilli())
 
     fun answer(): Move {
 
@@ -25,6 +30,7 @@ class Bot(private val board: Board) {
         val allMyCultist = board.allMyCultist()
         val allEnemies = board.allEnemies()
         allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
+        allMyCultist.forEach { randomMove(it, pq) }
 
         pq.add(P_WAIT, WaitMove.INSTANCE)
 
@@ -32,6 +38,18 @@ class Bot(private val board: Board) {
     }
 
     data class UnitAndCellWithDistance(val cell: Cell, val distance: Int, val unit: Unit)
+
+    private fun randomMove(cultist: ItemWithCell<Cultist>,
+                           pq: PriorityQueue<PqItem>) {
+        val pretenders = board.getNeighbors(cultist.cell).asSequence().filter {
+            board[it] is EmptyItem
+        }.toList()
+
+        if (pretenders.isNotEmpty()) {
+            val randomCell = pretenders.get(random.nextInt(pretenders.size))
+            pq.add(P_RANDOM_CULTIST, MoveMove(cultist.item.id, randomCell))
+        }
+    }
 
     private fun tryShoot(
         cultist: ItemWithCell<Cultist>,
@@ -83,6 +101,8 @@ class PqItem(val priority: Int, val move: Move) : Comparable<PqItem> {
 class Board(private val myId: Int, private val width: Int, private val height: Int) {
 
     private val board = mutableMapOf<Cell, Item>()
+
+    operator fun get(cell: Cell) = board[cell]
 
     fun fillBoardLine(y: Int, source: String) {
         check(source.length == width) { "source.length == width violated" }
@@ -195,7 +215,7 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         return null
     }
 
-    private fun getNeighbors(cell: Cell): List<Cell> {
+    fun getNeighbors(cell: Cell): List<Cell> {
         val result = mutableListOf<Cell>()
 
         cell.top()?.let { result.add(it) }
@@ -322,6 +342,12 @@ class ConvertMove(private val unitId: Int, private val targetId: Int) : Move {
 class ShootMove(private val unitId: Int, private val targetId: Int) : Move {
     override fun toString(): String {
         return "$unitId SHOOT $targetId"
+    }
+}
+
+class MoveMove(private val unitId: Int, private val to: Cell) : Move {
+    override fun toString(): String {
+        return "$unitId MOVE ${to.x} ${to.y}"
     }
 }
 
