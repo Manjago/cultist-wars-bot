@@ -66,7 +66,7 @@ class Bot(private val board: Board) {
                 val allPossibles = mutableListOf<Cell>()
                 allPossibles.addAll(board.getNeighbors(leader.cell).filter { board[it] is EmptyItem })
                 allPossibles.add(leader.cell)
-                allPossibles.sortBy { it.dangerLevel() * 1000 - board.getNearNeutralsCount(it)}
+                allPossibles.sortBy { it.dangerLevel() * 1000 - board.getNearNeutralsCount(it) * 100 - random.nextInt(10)}
                 val pretender = allPossibles[0]
                 if (pretender == leader.cell) {
                     pq.add(P_WAIT_RETREAT, WaitMove.INSTANCE)
