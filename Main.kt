@@ -10,6 +10,7 @@ import kotlin.random.Random
 
 class Bot(private val board: Board) {
 
+    private val P_RETREAT = 20_000
     private val P_SHOOT = 100_000
     private val P_CONVERT_NEAR = 800_000
     private val P_CONVERT_FAR = 900_000
@@ -23,9 +24,11 @@ class Bot(private val board: Board) {
 
     private val allEnemyCultists: MutableList<ItemWithCell<Cultist>> = mutableListOf()
 
+    private val dangerMemo = mutableMapOf<Cell, Int>()
 
     fun answer(): Move {
 
+        dangerMemo.clear()
         allEnemyCultists.clear()
         val allEnemies = board.allEnemies()
         allEnemyCultists.addAll(allEnemies.asSequence()
@@ -38,11 +41,23 @@ class Bot(private val board: Board) {
         val allCultLeaders = board.allMyCultLeaders()
         allCultLeaders.forEach { leader ->
 
-            val dangerous: Set<Cell> = board.getNeighbors(leader.cell).filter { board[it] is EmptyItem }.filter { it.dengerLevel() != 0 }.toSet()
+            val dangerous: Set<Cell> = board.getNeighbors(leader.cell).filter { board[it] is EmptyItem }.filter { it.dangerLevel() != 0 }.toSet()
+
+            if (leader.cell.dangerLevel() != 0) {
+
+                val allPossibles = mutableListOf<Cell>()
+                allPossibles.addAll(dangerous)
+                allPossibles.add(leader.cell)
+                allPossibles.sortBy { it.dangerLevel() }
+                val pretender = allPossibles[0]
+                if (pretender == leader.cell) {
+                    pq.add(P_RETREAT, WaitMove.INSTANCE)
+                } else {
+                    pq.add(P_RETREAT, MoveMove(leader.item.id, pretender))
+                }
+            }
 
             tryConvert(leader, pq, dangerous)
-
-
         }
 
         val allMyCultist = board.allMyCultist()
@@ -69,13 +84,21 @@ class Bot(private val board: Board) {
         }
     }
 
-    private fun Cell.dengerLevel(): Int {
+    private fun Cell.dangerLevel(): Int {
+
+        val pretender = dangerMemo[this]
+        if (pretender != null) {
+            return pretender
+        }
+
         val dangerLevel: Int? = allEnemyCultists.asSequence().filter { it.cell.distance(this) < DAMAGE}
             .filter { board.bresIsFree(it.cell, this) }
             .map {DAMAGE - it.cell.distance(this)}
             .sortedBy { it }
             .firstOrNull()
-        return dangerLevel ?: 0
+        val newValue = dangerLevel ?: 0
+        dangerMemo[this] = newValue
+        return newValue
     }
 
     private fun tryShoot(
