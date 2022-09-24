@@ -66,7 +66,7 @@ class Bot(private val board: Board) {
                 val allPossibles = mutableListOf<Cell>()
                 allPossibles.addAll(board.getNeighbors(leader.cell).filter { board[it] is EmptyItem })
                 allPossibles.add(leader.cell)
-                allPossibles.sortBy { it.dangerLevel() }
+                allPossibles.sortBy { it.dangerLevel() * 1000 - board.getNearNeutralsCount(it)}
                 val pretender = allPossibles[0]
                 if (pretender == leader.cell) {
                     pq.add(P_WAIT_RETREAT, WaitMove.INSTANCE)
@@ -430,6 +430,12 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         val tested = br.slice(1..br.size - 2)
         val bad = tested.any { board[it] !is EmptyItem }
         return !bad
+    }
+
+    fun getNearNeutralsCount(cell: Cell): Int {
+        return getNeighbors(cell).filter {
+            board[it] is Cultist && (board[it] as Cultist).owner == Owner.NEUTRAL
+        }.count()
     }
 
     companion object {
