@@ -21,7 +21,17 @@ class Bot(private val board: Board) {
 
     private val random = Random(Instant.now().toEpochMilli())
 
+    private val allEnemyCultists: MutableList<ItemWithCell<Cultist>> = mutableListOf()
+
+
     fun answer(): Move {
+
+        allEnemyCultists.clear()
+        val allEnemies = board.allEnemies()
+        allEnemyCultists.addAll(allEnemies.asSequence()
+            .filter { it.item is Cultist }
+            .map {ItemWithCell(it.cell, it.item as Cultist)}
+        )
 
         val pq = PriorityQueue<PqItem>()
 
@@ -29,7 +39,6 @@ class Bot(private val board: Board) {
         allCultLeaders.forEach { tryConvert(it, pq) }
 
         val allMyCultist = board.allMyCultist()
-        val allEnemies = board.allEnemies()
         allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
         allMyCultist.forEach { randomMove(it, pq) }
         allMyCultist.forEach { tryCultistMove(it, pq) }
@@ -51,6 +60,15 @@ class Bot(private val board: Board) {
             val randomCell = pretenders.get(random.nextInt(pretenders.size))
             pq.add(P_RANDOM_CULTIST, MoveMove(cultist.item.id, randomCell))
         }
+    }
+
+    private fun Cell.isDanger(): Int {
+        val dangerLevel: Int? = allEnemyCultists.asSequence().filter { it.cell.distance(this) < DAMAGE}
+            .filter { board.bresIsFree(it.cell, this) }
+            .map {DAMAGE - it.cell.distance(this)}
+            .sortedBy { it }
+            .firstOrNull()
+        return dangerLevel ?: 0
     }
 
     private fun tryShoot(
