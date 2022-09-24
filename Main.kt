@@ -36,7 +36,14 @@ class Bot(private val board: Board) {
         val pq = PriorityQueue<PqItem>()
 
         val allCultLeaders = board.allMyCultLeaders()
-        allCultLeaders.forEach { tryConvert(it, pq) }
+        allCultLeaders.forEach { leader ->
+
+            val dangerous: Set<Cell> = board.getNeighbors(leader.cell).filter { board[it] is EmptyItem }.filter { it.dengerLevel() != 0 }.toSet()
+
+            tryConvert(leader, pq, dangerous)
+
+
+        }
 
         val allMyCultist = board.allMyCultist()
         allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
@@ -62,7 +69,7 @@ class Bot(private val board: Board) {
         }
     }
 
-    private fun Cell.isDanger(): Int {
+    private fun Cell.dengerLevel(): Int {
         val dangerLevel: Int? = allEnemyCultists.asSequence().filter { it.cell.distance(this) < DAMAGE}
             .filter { board.bresIsFree(it.cell, this) }
             .map {DAMAGE - it.cell.distance(this)}
@@ -88,7 +95,7 @@ class Bot(private val board: Board) {
         }
     }
 
-    private fun tryConvert(cultLeader: ItemWithCell<CultLeader>, pq: PriorityQueue<PqItem>) {
+    private fun tryConvert(cultLeader: ItemWithCell<CultLeader>, pq: PriorityQueue<PqItem>, dangerous: Set<Cell>) {
         val nearestVictims: List<ItemWithCell<Cultist>> = board.nearestVictimsForCultLeader(cultLeader.cell)
         when {
             nearestVictims.isNotEmpty() -> {
@@ -97,7 +104,7 @@ class Bot(private val board: Board) {
             }
 
             else -> {
-                val victim = board.pathToNearestVictimForCultLeader(cultLeader.cell)
+                val victim = board.pathToNearestVictimForCultLeader(cultLeader.cell, dangerous)
                 when {
                     victim != null -> {
                         pq.add(P_CONVERT_FAR, ConvertMove(cultLeader.item.id, victim.item.id))
@@ -208,7 +215,7 @@ class Board(private val myId: Int, private val width: Int, private val height: I
     }.map { ItemWithCell(it.key, it.value as Unit) }
         .toList()
 
-    fun pathToNearestVictimForCultLeader(initial: Cell): ItemWithCell<Cultist>? {
+    fun pathToNearestVictimForCultLeader(initial: Cell, dangerous: Set<Cell>): ItemWithCell<Cultist>? {
 
         val visited = mutableSetOf<Cell>()
         val queue = ArrayDeque<Cell>()
@@ -221,7 +228,7 @@ class Board(private val myId: Int, private val width: Int, private val height: I
             visited += cell
 
             if (cell == initial) {
-                queue += getNeighbors(cell)
+                queue += getNeighbors(cell).filter { !dangerous.contains(it) }
                 continue
             }
 
