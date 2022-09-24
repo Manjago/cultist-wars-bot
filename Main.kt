@@ -388,6 +388,10 @@ class Board(private val myId: Int, private val width: Int, private val height: I
 
 data class Cell(val x: Int, val y: Int) {
     fun distance(other: Cell): Int = abs(x - other.x) + abs(y - other.y)
+    override fun toString(): String {
+        return "$x:$y"
+    }
+
 }
 
 sealed interface Item
