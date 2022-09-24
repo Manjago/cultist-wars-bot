@@ -81,7 +81,10 @@ class Bot(private val board: Board) {
         val allMyCultist = board.allMyCultist()
         allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
         if (allEnemyCultLeaders.isNotEmpty()) {
-            allMyCultist.forEach { pq.add(P_CULTIST_2_LEADER, MoveMove(it.item.id, allEnemyCultLeaders[0].cell)) }
+            allMyCultist.forEach {
+                val enemyKing = allEnemyCultLeaders[0]
+                pq.add(P_CULTIST_2_LEADER - it.cell.distance(enemyKing.cell), MoveMove(it.item.id, enemyKing.cell))
+            }
         }
         allMyCultist.forEach { randomMove(it, pq) }
         allMyCultist.forEach { tryCultistMove(it, pq) }
