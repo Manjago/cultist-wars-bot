@@ -97,10 +97,12 @@ class Bot(private val board: Board) {
             }
 
             else -> {
-                val victim = board.pathToNearestVictimForCultLeader(cultLeader.cell)
-                when {
-                    victim != null -> {
-                        pq.add(P_CONVERT_FAR, ConvertMove(cultLeader.item.id, victim.item.id))
+
+                val allNeutrals = board.allNeutrals()
+                for(n in allNeutrals) {
+                    val path: List<Cell>? = board.bfs(cultLeader.cell, n.cell)
+                    if (path != null && path.size > 2 && path[1].isDanger() == 0) {
+                        pq.add(P_CONVERT_FAR + path.size, MoveMove(cultLeader.item.id, path[1]))
                     }
                 }
             }
@@ -207,51 +209,12 @@ class Board(private val myId: Int, private val width: Int, private val height: I
         value is Unit && value.owner == Owner.ENEMY
     }.map { ItemWithCell(it.key, it.value as Unit) }
         .toList()
+    fun allNeutrals(): List<ItemWithCell<Cultist>> = board.entries.asSequence().filter {
+        val value = it.value
+        value is Cultist && value.owner == Owner.NEUTRAL
+    }.map { ItemWithCell(it.key, it.value as Cultist) }
+        .toList()
 
-    fun pathToNearestVictimForCultLeader(initial: Cell): ItemWithCell<Cultist>? {
-
-        val visited = mutableSetOf<Cell>()
-        val queue = ArrayDeque<Cell>()
-        queue += initial
-        while (queue.isNotEmpty()) {
-            val cell = queue.removeFirst()
-            if (visited.contains(cell)) {
-                continue
-            }
-            visited += cell
-
-            if (cell == initial) {
-                queue += getNeighbors(cell)
-                continue
-            }
-
-            val item = board[cell]
-            when (item) {
-                is EmptyItem -> {
-                    queue += getNeighbors(cell)
-                }
-
-                is ObstacleItem -> {
-                    continue
-                }
-
-                null -> {
-                    continue
-                }
-
-                is Unit -> {
-                    when {
-                        (item is Cultist) && (item.owner == Owner.NEUTRAL) -> return ItemWithCell(cell, item)
-                        else -> continue
-                    }
-                }
-
-            }
-
-        }
-
-        return null
-    }
     fun pathToNearestVictimForCultist(initial: Cell): ItemWithCell<Unit>? {
 
         val visited = mutableSetOf<Cell>()
@@ -292,6 +255,47 @@ class Board(private val myId: Int, private val width: Int, private val height: I
 
             }
 
+        }
+
+        return null
+    }
+
+    fun bfs(from: Cell, to: Cell) : List<Cell>? {
+
+        val parents = mutableMapOf<Cell, Cell?>()
+
+        fun parents2path(cell: Cell) : List<Cell> {
+            val data = mutableListOf<Cell>()
+            var nextCell: Cell? = cell
+
+            do {
+                data.add(nextCell!!)
+                nextCell = parents[cell]
+            }while(nextCell != null)
+
+            return data.reversed()
+        }
+
+        val visited = mutableSetOf<Cell>()
+        val queue = ArrayDeque<Cell>()
+        queue += from
+        parents[from] = null
+        while (queue.isNotEmpty()) {
+            val cell = queue.removeFirst()
+            if (visited.contains(cell)) {
+                continue
+            }
+            visited += cell
+
+            val realNeighboors = getNeighbors(cell).asSequence().filter { board[it] is EmptyItem || cell == to}.toList()
+            for (n in realNeighboors) {
+                if (n == to) {
+                    return parents2path(n)
+                }
+
+                parents[n] = cell
+                queue += n
+            }
         }
 
         return null
