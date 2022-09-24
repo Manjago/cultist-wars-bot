@@ -10,12 +10,15 @@ import kotlin.random.Random
 
 class Bot(private val board: Board) {
 
+    private val P_RETREAT_CONVERT = 10_000
     private val P_RETREAT = 20_000
     private val P_SHOOT = 100_000
     private val P_CONVERT_NEAR = 800_000
     private val P_CONVERT_FAR = 900_000
     private val P_MOVE_CULTIST = 940_000
+    private val P_CULTIST_2_LEADER = 945_000
     private val P_RANDOM_CULTIST = 950_000
+    private val P_WAIT_RETREAT = 999_999
     private val P_WAIT = 1_000_000
 
     private val DAMAGE = 7
@@ -23,6 +26,7 @@ class Bot(private val board: Board) {
     private val random = Random(Instant.now().toEpochMilli())
 
     private val allEnemyCultists: MutableList<ItemWithCell<Cultist>> = mutableListOf()
+    private val allEnemyCultLeaders: MutableList<ItemWithCell<CultLeader>> = mutableListOf()
 
     private val dangerMemo = mutableMapOf<Cell, Int>()
 
@@ -30,10 +34,15 @@ class Bot(private val board: Board) {
 
         dangerMemo.clear()
         allEnemyCultists.clear()
+        allEnemyCultLeaders.clear()
         val allEnemies = board.allEnemies()
         allEnemyCultists.addAll(allEnemies.asSequence()
             .filter { it.item is Cultist }
             .map {ItemWithCell(it.cell, it.item as Cultist)}
+        )
+        allEnemyCultLeaders.addAll(allEnemies.asSequence()
+            .filter { it.item is CultLeader }
+            .map {ItemWithCell(it.cell, it.item as CultLeader)}
         )
 
         val pq = PriorityQueue<PqItem>()
@@ -41,17 +50,26 @@ class Bot(private val board: Board) {
         val allCultLeaders = board.allMyCultLeaders()
         allCultLeaders.forEach { leader ->
 
+            val nearEnemy = board.getNeighbors(leader.cell).filter {
+                val item = board[it]
+                item is Cultist && item.owner == Owner.ENEMY
+            }.toList()
+
+            if (nearEnemy.isNotEmpty()) {
+                pq.add(P_RETREAT_CONVERT, ConvertMove(leader.item.id, (board[nearEnemy[0]] as Cultist).id))
+            }
+
             val dangerous: Set<Cell> = board.getNeighbors(leader.cell).filter { board[it] is EmptyItem }.filter { it.dangerLevel() != 0 }.toSet()
 
             if (leader.cell.dangerLevel() != 0) {
 
                 val allPossibles = mutableListOf<Cell>()
-                allPossibles.addAll(dangerous)
+                allPossibles.addAll(board.getNeighbors(leader.cell).filter { board[it] is EmptyItem })
                 allPossibles.add(leader.cell)
                 allPossibles.sortBy { it.dangerLevel() }
                 val pretender = allPossibles[0]
                 if (pretender == leader.cell) {
-                    pq.add(P_RETREAT, WaitMove.INSTANCE)
+                    pq.add(P_WAIT_RETREAT, WaitMove.INSTANCE)
                 } else {
                     pq.add(P_RETREAT, MoveMove(leader.item.id, pretender))
                 }
@@ -62,6 +80,9 @@ class Bot(private val board: Board) {
 
         val allMyCultist = board.allMyCultist()
         allMyCultist.forEach { tryShoot(it, pq, allEnemies) }
+        if (allEnemyCultLeaders.isNotEmpty()) {
+            allMyCultist.forEach { pq.add(P_CULTIST_2_LEADER, MoveMove(it.item.id, allEnemyCultLeaders[0].cell)) }
+        }
         allMyCultist.forEach { randomMove(it, pq) }
         allMyCultist.forEach { tryCultistMove(it, pq) }
 
